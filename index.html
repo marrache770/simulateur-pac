@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#108468">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Simulateur PAC vs Chaudière</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Simu PAC">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout : client + onglets en haut. Onglet 1 = transfert de charge (avant → après → gain). Onglet 2 = financement (pile des 22 900 € + 4 étapes). PDF = 2 pages A4. */
+:root{
+  --bg:#f2f4f5; --card:#ffffff; --fg:#1b2226; --muted:#68757c; --line:#dfe4e7;
+  --gas:#d55f27; --gas-soft:#fcece3; --pac:#108468; --pac-soft:#dcf3ec;
+  --mpr:#2f6fd6; --cee:#7a5bd6; --ptz:#108468; --bank:#3d4a51;
+  --font-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-head:"Space Grotesk","Inter",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#101517; --card:#192023; --fg:#e8eef0; --muted:#97a4aa; --line:#2a3337;
+  --gas:#f0844f; --gas-soft:#36221a; --pac:#3cc4a4; --pac-soft:#11302a;
+  --mpr:#6b9cf0; --cee:#a48cf0; --ptz:#3cc4a4; --bank:#b7c3c9; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101517; --card:#192023; --fg:#e8eef0; --muted:#97a4aa; --line:#2a3337;
+  --gas:#f0844f; --gas-soft:#36221a; --pac:#3cc4a4; --pac-soft:#11302a;
+  --mpr:#6b9cf0; --cee:#a48cf0; --ptz:#3cc4a4; --bank:#b7c3c9; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:16px;line-height:1.4;-webkit-text-size-adjust:100%}
+.wrap{max-width:520px;margin:0 auto;padding-block:14px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
+.view{display:flex;flex-direction:column;gap:12px}
+.num{font-variant-numeric:tabular-nums}
+
+.top{display:flex;gap:8px;align-items:center}
+.client{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--card);border-radius:12px;padding:0 12px}
+.client span{color:var(--muted);font-size:.85rem;font-weight:600}
+.client input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:600 1rem var(--font-body);padding:12px 0}
+.client input:focus{outline:none}
+.pdf{border:0;background:var(--fg);color:var(--bg);font:700 .9rem var(--font-body);padding:12px 14px;border-radius:12px;cursor:pointer;white-space:nowrap}
+.pdf:disabled{opacity:.6}
+.msg{font-size:.85rem;color:var(--muted);text-align:center;margin-top:-4px}
+
+.tabs{display:flex;background:var(--card);border-radius:12px;padding:4px;gap:4px}
+.tabs button{flex:1 1 auto;min-width:0;border:0;background:transparent;color:var(--muted);font:700 .85rem var(--font-head);padding:10px 2px;border-radius:9px;cursor:pointer}
+.tabs button.on{background:var(--fg);color:var(--bg)}
+
+.card{background:var(--card);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tag{font-family:var(--font-head);font-weight:700;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.before .tag{color:var(--gas)} .after .tag{color:var(--pac)}
+.title{font-family:var(--font-head);font-weight:700;font-size:1.15rem}
+
+.line{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.line .k{font-weight:500;min-width:0}
+.field{display:flex;align-items:center;gap:4px;background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:0 10px;width:140px;flex:none}
+.field:focus-within{border-color:var(--fg)}
+.field input,.field select{width:100%;min-width:0;border:0;background:transparent;color:var(--fg);font:700 1.15rem var(--font-head);padding:9px 0;text-align:right;font-variant-numeric:tabular-nums}
+.field select{text-align:left;font-size:1rem;appearance:none;-webkit-appearance:none;cursor:pointer}
+.field input:focus,.field select:focus{outline:none}
+.field em{font-style:normal;color:var(--muted);font-size:.8rem;white-space:nowrap}
+.calc{font:700 1.15rem var(--font-head);font-variant-numeric:tabular-nums;width:140px;text-align:right;padding-right:10px}
+.calc em{font:400 .8rem var(--font-body);color:var(--muted)}
+.sum{display:flex;justify-content:space-between;align-items:baseline;border-top:1.5px dashed var(--line);padding-top:12px}
+.sum .k{font-weight:600}
+.sum .v{font:700 1.9rem var(--font-head);font-variant-numeric:tabular-nums}
+.before .sum .v{color:var(--gas)} .after .sum .v{color:var(--pac)}
+.sum .v small{font-size:.9rem;color:var(--muted);font-weight:500}
+
+.seg{display:flex;background:var(--bg);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;color:var(--muted);font:600 .9rem var(--font-body);padding:8px 4px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.arrow{text-align:center;color:var(--muted);font-size:1.4rem;line-height:1;margin:-4px 0}
+
+.gain{background:var(--pac);color:#fff;border-radius:16px;padding:18px 16px;text-align:center}
+.gain.neg{background:var(--gas)}
+.gain .k{font-weight:600;opacity:.92}
+.gain .v{font:700 3rem var(--font-head);line-height:1.1;font-variant-numeric:tabular-nums}
+.gain .s{opacity:.92;font-size:.95rem}
+
+.bars{display:flex;flex-direction:column;gap:12px}
+.bar .lab{display:flex;justify-content:space-between;font-weight:600;margin-bottom:4px}
+.bar .lab .num{font-family:var(--font-head)}
+.track{height:16px;background:var(--bg);border-radius:8px;overflow:hidden}
+.fill{height:100%;border-radius:8px;transition:width .3s}
+.bar.g .fill{background:var(--gas)} .bar.p .fill{background:var(--pac)}
+.bar .det{font-size:.8rem;color:var(--muted);margin-top:3px}
+.total{display:flex;justify-content:space-between;align-items:baseline;background:var(--pac-soft);border-radius:12px;padding:12px 14px}
+.total .k{font-weight:600}
+.total .v{font:700 1.6rem var(--font-head);color:var(--pac);font-variant-numeric:tabular-nums}
+.total.neg{background:var(--gas-soft)} .total.neg .v{color:var(--gas)}
+
+/* Financement : la pile */
+.pile{display:flex;height:46px;border-radius:10px;overflow:hidden;gap:2px}
+.pile div{display:flex;align-items:center;justify-content:center;color:#fff;font:700 .8rem var(--font-head);min-width:64px;padding:0 4px;overflow:hidden;white-space:nowrap;transition:flex-grow .3s}
+.leg{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:.92rem}
+.leg .n{font-weight:700;font-family:var(--font-head);text-align:right;font-variant-numeric:tabular-nums}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px}
+.bankline{display:flex;justify-content:space-between;align-items:baseline;background:var(--bg);border-radius:10px;padding:10px 12px}
+.bankline b{font-family:var(--font-head);font-size:1.25rem;font-variant-numeric:tabular-nums}
+
+/* Financement : étapes */
+.steps{display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:34px 1fr;gap:12px;position:relative;padding-bottom:18px}
+.step:last-child{padding-bottom:0}
+.step::before{content:"";position:absolute;left:16px;top:34px;bottom:0;width:2px;background:var(--line)}
+.step:last-child::before{display:none}
+.step .n{width:34px;height:34px;border-radius:50%;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:center;font:700 1rem var(--font-head)}
+.step.ok .n{background:var(--pac);color:#fff}
+.step h3{margin:5px 0 2px;font:700 1.02rem var(--font-head)}
+.step .when{font-size:.82rem;color:var(--muted);font-weight:600}
+.step p{margin:4px 0 0;color:var(--fg);font-size:.95rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{font-size:.8rem;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--bg)}
+.chip.y{background:var(--pac-soft);color:var(--pac)} .chip.r{background:var(--gas-soft);color:var(--gas)}
+.debt{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.debt span.a{font:700 1rem var(--font-head);font-variant-numeric:tabular-nums;background:var(--bg);padding:5px 9px;border-radius:8px}
+.debt span.a.zero{background:var(--pac-soft);color:var(--pac)}
+.debt i{font-style:normal;color:var(--muted)}
+.warn{background:var(--gas-soft);color:var(--gas);border-radius:10px;padding:10px 12px;font-weight:600;font-size:.92rem}
+@media (prefers-reduced-motion:reduce){.fill,.pile div{transition:none}}
+
+/* Travaux */
+.chk{display:flex;flex-direction:column}
+.ck{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer;min-height:44px}
+.chk .ck:last-child{border-bottom:0}
+.ck input[type=checkbox]{width:22px;height:22px;accent-color:var(--pac);flex:none;margin:0}
+.ck > span:nth-of-type(1){flex:1;min-width:0}
+.field.sm{width:96px}
+.mprc{display:flex;gap:8px}
+.mprc button{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0}
+.mprc button.on{border-color:var(--fg)}
+
+/* Maison */
+.q{display:flex;flex-direction:column;gap:6px}
+.q .k{font-weight:500}
+.q .seg{flex-wrap:wrap}
+.q .seg button{flex:1 1 auto}
+.notes{width:100%;min-height:80px;border:1.5px solid var(--line);background:var(--bg);color:var(--fg);border-radius:10px;padding:10px;font:500 1rem var(--font-body);resize:vertical}
+.notes:focus{outline:none;border-color:var(--fg)}
+.pg .info{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;font-size:13px}
+.pg .info > div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #eef1f2}
+.pg .info span{color:#68757c}
+.pg .info b{font-weight:600;text-align:right}
+
+/* Rendu PDF (hors écran, look papier fixe) */
+#paper{position:fixed;left:-10000px;top:0}
+.pg{width:794px;height:1123px;background:#fff;color:#1b2226;padding:56px 56px 40px;font-family:var(--font-body);display:flex;flex-direction:column;gap:22px;font-size:15px}
+.pg h1{font:700 28px var(--font-head);margin:0}
+.pg h2{font:700 19px var(--font-head);margin:0}
+.pg .meta{color:#68757c;margin-top:4px}
+.pg .hr{height:4px;background:#108468;border-radius:2px;width:60px}
+.pg .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.pg .box{border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:8px}
+.pg .box.g{background:#fcece3} .pg .box.p{background:#dcf3ec}
+.pg .box .t{font:700 13px var(--font-head);letter-spacing:.08em;text-transform:uppercase}
+.pg .box.g .t,.pg .box.g .big{color:#d55f27} .pg .box.p .t,.pg .box.p .big{color:#108468}
+.pg .row{display:flex;justify-content:space-between}
+.pg .big{font:700 30px var(--font-head);border-top:1.5px dashed rgba(0,0,0,.15);padding-top:8px;display:flex;justify-content:space-between;align-items:baseline}
+.pg .big small{font:500 13px var(--font-body);color:#1b2226}
+.pg .gainp{background:#108468;color:#fff;border-radius:14px;padding:20px;text-align:center}
+.pg .gainp.neg{background:#d55f27}
+.pg .gainp .v{font:700 44px var(--font-head)}
+.pg .pb{display:flex;flex-direction:column;gap:5px}
+.pg .pb .lab{display:flex;justify-content:space-between;font-weight:600}
+.pg .pb .tr{height:18px;background:#eef1f2;border-radius:9px;overflow:hidden}
+.pg .pb .fl{height:100%;border-radius:9px}
+.pg .pb .det{font-size:12px;color:#68757c}
+.pg .tot{display:flex;justify-content:space-between;align-items:baseline;background:#dcf3ec;border-radius:12px;padding:14px 18px;font-weight:600}
+.pg .tot b{font:700 26px var(--font-head);color:#108468}
+.pg .tot.neg{background:#fcece3} .pg .tot.neg b{color:#d55f27}
+.pg .pilep{display:flex;height:52px;border-radius:10px;overflow:hidden;gap:2px}
+.pg .pilep div{min-width:90px;padding:0 6px;display:flex;align-items:center;justify-content:center;color:#fff;font:700 14px var(--font-head);white-space:nowrap;overflow:hidden}
+.pg .stp{display:grid;grid-template-columns:36px 1fr;gap:14px}
+.pg .stp .n{width:36px;height:36px;border-radius:50%;background:#1b2226;color:#fff;display:flex;align-items:center;justify-content:center;font:700 16px var(--font-head)}
+.pg .stp.ok .n{background:#108468}
+.pg .stp h3{margin:6px 0 2px;font:700 16px var(--font-head)}
+.pg .stp p{margin:0;color:#3d4a51}
+.pg ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+.pg li{display:flex;gap:10px;align-items:baseline}
+.pg li::before{content:"✓";color:#108468;font-weight:700}
+.pg .card3{border:1.5px solid #dfe4e7;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.pg .card3 .t{font:700 13px var(--font-head);letter-spacing:.08em;text-transform:uppercase;color:#68757c}
+.pg .guar{background:#1b2226;color:#fff;border-radius:10px;padding:10px 14px;font-weight:600}
+.pg .pill{display:inline-block;color:#fff;font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;margin-left:8px}
+.pg .split{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #dfe4e7;border-radius:14px;overflow:hidden}
+.pg .split > div{padding:18px;display:flex;flex-direction:column;gap:8px}
+.pg .split > div + div{border-left:2px solid #1b2226;background:#dcf3ec}
+.pg .split .t{font:700 13px var(--font-head);letter-spacing:.08em;text-transform:uppercase;color:#68757c}
+.pg .split .amt{font:700 26px var(--font-head)}
+.pg .split .m{font:700 22px var(--font-head)}
+.pg .split .m small{font:500 13px var(--font-body);color:#68757c}
+.pg .split .ok .m,.pg .split > div + div .m{color:#108468}
+.pg .duo{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pg .duo > div{background:#108468;color:#fff;border-radius:14px;padding:16px;text-align:center}
+.pg .duo .v{font:700 32px var(--font-head)}
+.pg .foot{margin-top:auto;font-size:11px;color:#68757c;border-top:1px solid #dfe4e7;padding-top:10px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+    <label class="client"><span>Client</span><input id="client" type="text" placeholder="Nom du client" autocomplete="off"></label>
+    <button type="button" class="pdf" id="pdfBtn" hidden>PDF</button>
+  </div>
+  <div class="msg" id="pdfMsg" hidden></div>
+
+  <div class="tabs" role="tablist">
+    <button type="button" data-tab="eco" class="on" role="tab">Économies</button>
+    <button type="button" data-tab="fin" role="tab">Financement</button>
+    <button type="button" data-tab="trav" role="tab">Travaux</button>
+    <button type="button" data-tab="mais" role="tab">Maison</button>
+  </div>
+
+  <!-- ===== ONGLET MAISON (rempli par JS) ===== -->
+  <div class="view" id="vMais" hidden></div>
+
+  <!-- ===== ONGLET ÉCONOMIES ===== -->
+  <div class="view" id="vEco">
+    <section class="card before">
+      <div class="head">
+        <div><div class="tag">Aujourd'hui</div><div class="title">Chaudière</div></div>
+        <div class="seg" style="width:150px">
+          <button type="button" data-e="gaz" class="on">Gaz</button>
+          <button type="button" data-e="fioul">Fioul</button>
+        </div>
+      </div>
+      <div class="line"><span class="k" id="lblE">Gaz</span><label class="field"><input id="bill" type="text" inputmode="decimal" value="170" aria-label="Facture par mois"><em>€/mois</em></label></div>
+      <div class="line"><span class="k">Entretien</span><label class="field"><input id="maint" type="text" inputmode="decimal" value="190" aria-label="Entretien par an"><em>€/an</em></label></div>
+      <div class="sum"><span class="k">Par mois</span><span class="v" id="mBefore">—</span></div>
+    </section>
+
+    <div class="arrow" aria-hidden="true">↓</div>
+
+    <section class="card after">
+      <div class="head"><div><div class="tag">Demain</div><div class="title">Pompe à chaleur</div></div></div>
+      <div class="line"><span class="k">Mensualité</span><label class="field"><input id="mens" type="text" inputmode="decimal" value="83" aria-label="Mensualité PAC"><em>€/mois</em></label></div>
+      <div class="line"><span class="k">Surface</span><label class="field"><input id="surf" type="text" inputmode="decimal" value="90" aria-label="Surface"><em>m²</em></label></div>
+      <div class="seg" role="group" aria-label="Isolation">
+        <button type="button" data-iso="6">Mal isolée</button>
+        <button type="button" data-iso="4" class="on">Moyenne</button>
+        <button type="button" data-iso="3">Bien isolée</button>
+      </div>
+      <div class="line"><span class="k">Électricité</span><span class="calc" id="elec">—</span></div>
+      <div class="sum"><span class="k">Par mois</span><span class="v" id="mAfter">—</span></div>
+    </section>
+
+    <section class="gain" id="gainBox" aria-live="polite">
+      <div class="k" id="gainLbl">Gagné chaque mois</div>
+      <div class="v" id="gain">—</div>
+      <div class="s" id="gainSub"></div>
+    </section>
+
+    <section class="card">
+      <div class="seg" role="group" aria-label="Durée">
+        <button type="button" data-h="10">Sur 10 ans</button>
+        <button type="button" data-h="15" class="on">Sur 15 ans</button>
+      </div>
+      <div class="bars">
+        <div class="bar g">
+          <div class="lab"><span>Chaudière</span><span class="num" id="totG">—</span></div>
+          <div class="track"><div class="fill" id="barG"></div></div>
+          <div class="det" id="detG"></div>
+        </div>
+        <div class="bar p">
+          <div class="lab"><span>Pompe à chaleur</span><span class="num" id="totP">—</span></div>
+          <div class="track"><div class="fill" id="barP"></div></div>
+          <div class="det" id="detP"></div>
+        </div>
+      </div>
+      <div class="total" id="totBox"><span class="k" id="totLbl">Économie</span><span class="v" id="save">—</span></div>
+      <div class="line"><span class="k">Remplacement chaudière</span><label class="field"><input id="repl" type="text" inputmode="decimal" value="8000" aria-label="Remplacement chaudière"><em>€</em></label></div>
+      <div class="line"><span class="k" id="lblInf">Hausse du gaz</span><label class="field"><input id="inf" type="text" inputmode="decimal" value="6" aria-label="Hausse par an"><em>%/an</em></label></div>
+    </section>
+  </div>
+
+  <!-- ===== ONGLET FINANCEMENT ===== -->
+  <div class="view" id="vFin" hidden>
+    <section class="card">
+      <div class="line"><span class="k">Prix de la PAC</span><label class="field"><input id="price" type="text" inputmode="decimal" value="22900" aria-label="Prix de la PAC"><em>€</em></label></div>
+      <div class="line"><span class="k">Partenaire</span><label class="field"><select id="bank" aria-label="Partenaire financier">
+        <option>Domofinance</option><option>Sofinco</option><option>Projexio</option><option>Franfinance</option>
+      </select><em>▾</em></label></div>
+      <div class="line"><span class="k">Couleur MPR</span>
+        <div class="mprc" role="group" aria-label="Couleur MaPrimeRénov'">
+          <button type="button" data-mc="Bleu" class="on" style="background:#2f6fd6" aria-label="Bleu"></button>
+          <button type="button" data-mc="Jaune" style="background:#e3b505" aria-label="Jaune"></button>
+          <button type="button" data-mc="Violet" style="background:#7a5bd6" aria-label="Violet"></button>
+          <button type="button" data-mc="Rose" style="background:#e0609a" aria-label="Rose"></button>
+        </div></div>
+      <div class="line"><span class="k">MaPrimeRénov'</span><label class="field"><input id="mpr" type="text" inputmode="decimal" value="5000" aria-label="MaPrimeRénov'"><em>€</em></label></div>
+      <div class="line"><span class="k">Prime CEE</span><label class="field"><input id="cee" type="text" inputmode="decimal" value="2900" aria-label="Prime CEE"><em>€</em></label></div>
+      <div class="line"><span class="k">Prêt à taux zéro</span><span class="calc" id="ptzAmt">—</span></div>
+      <div class="seg" role="group" aria-label="Durée du prêt à taux zéro">
+        <button type="button" data-d="10">10 ans · 120 mois</button>
+        <button type="button" data-d="15" class="on">15 ans · 180 mois</button>
+      </div>
+      <div class="line"><span class="k">Mensualité sans aides<br><small style="color:var(--muted)"><span class="bk">Domofinance</span> · 15 ans</small></span><label class="field"><input id="bankMens" type="text" inputmode="decimal" value="170,65" aria-label="Mensualité sans aides"><em>€/mois</em></label></div>
+    </section>
+
+    <section class="card">
+      <div class="tag">Qui paie les <span id="pilePrice">—</span></div>
+      <div class="pile" id="pile"></div>
+      <div class="leg" id="leg"></div>
+    </section>
+
+    <section class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <div><div class="when">3 à 4 jours</div><h3>Étude du dossier</h3>
+            <p>Technique, administrative et financière, envoyée à <b class="bk">Domofinance</b>.</p>
+            <div class="chips"><span class="chip y">Accepté → on fixe l'installation</span><span class="chip r">Refusé → pas de projet</span></div></div>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <div><div class="when">Jour de l'installation</div><h3><b class="bk">Domofinance</b> avance tout</h3>
+            <p>La pompe à chaleur est payée en entier : <b class="pr num">—</b>. Vous ne sortez rien.</p></div>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <div><div class="when">Pendant 6 mois · rien à payer</div><h3>Les aides et le prêt remboursent</h3>
+            <p>MaPrimeRénov' et la prime CEE arrivent, puis le prêt à taux zéro est débloqué. Tout est reversé à <b class="bk">Domofinance</b>.</p>
+            <div class="debt" id="debt"></div></div>
+        </div>
+        <div class="step ok">
+          <div class="n">4</div>
+          <div><div class="when">À partir du 7e mois</div><h3>Il ne reste que le prêt à taux zéro</h3>
+            <p><b class="bk">Domofinance</b> est soldé. Vous remboursez seulement le prêt à 0 %.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="warn" id="warn" hidden></div>
+
+    <section class="gain">
+      <div class="k">Votre mensualité</div>
+      <div class="v num" id="finMens">—</div>
+      <div class="s" id="finSub"></div>
+    </section>
+  </div>
+
+  <!-- ===== ONGLET TRAVAUX ===== -->
+  <div class="view" id="vTrav" hidden>
+    <section class="card">
+      <div class="title">Pompe à chaleur</div>
+      <div class="chk">
+        <label class="ck"><input type="checkbox" data-w="Groupe extérieur" checked><span>Groupe extérieur</span><span class="field sm"><input id="kw" type="text" inputmode="decimal" value="8" aria-label="Puissance du groupe"><em>kW</em></span></label>
+        <label class="ck"><input type="checkbox" data-w="Module hydraulique" checked><span>Module hydraulique</span></label>
+        <label class="ck"><input type="checkbox" data-w="Domotique" checked><span>Domotique</span></label>
+        <label class="ck"><input type="checkbox" data-w="Vase d'expansion" checked><span>Vase d'expansion</span></label>
+        <label class="ck"><input type="checkbox" data-w="Ballon tampon" checked><span>Ballon tampon</span></label>
+        <label class="ck"><input type="checkbox" data-w="Raccordement" checked><span>Raccordement</span></label>
+        <label class="ck"><input type="checkbox" data-w="Liaison frigorifique" checked><span>Liaison frigorifique</span></label>
+      </div>
+    </section>
+    <section class="card">
+      <div class="title">Ballon d'eau chaude</div>
+      <div class="seg" role="group" aria-label="Ballon d'eau chaude">
+        <button type="button" data-ball="" class="on">Aucun</button>
+        <button type="button" data-ball="Ballon électrique">Électrique</button>
+        <button type="button" data-ball="Ballon thermodynamique">Thermo</button>
+      </div>
+      <div class="line" id="litRow" hidden><span class="k">Contenance</span><label class="field"><input id="lit" type="text" inputmode="numeric" value="200" aria-label="Litres"><em>L</em></label></div>
+    </section>
+    <section class="card">
+      <div class="title">Frais inclus</div>
+      <div class="chk">
+        <label class="ck"><input type="checkbox" data-fr="Administratif · Bureau Veritas" checked><span>Administratif · Bureau Veritas</span></label>
+        <label class="ck"><input type="checkbox" data-fr="Déplacement" checked><span>Déplacement</span></label>
+        <label class="ck"><input type="checkbox" data-fr="Raccordements" checked><span>Raccordements</span></label>
+        <label class="ck"><input type="checkbox" data-fr="Mise en service" checked><span>Mise en service</span></label>
+      </div>
+    </section>
+    <section class="card">
+      <label class="ck" style="border:0;padding:0"><input type="checkbox" id="guar" checked><span><b>Garantie</b> pièces · main d'œuvre · déplacement</span></label>
+      <div class="seg" role="group" aria-label="Durée de garantie">
+        <button type="button" data-gy="10">10 ans</button>
+        <button type="button" data-gy="15" class="on">15 ans</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="paper" aria-hidden="true"></div>
+
+<script>
+(function(){
+  var AUTO={gaz:6,fioul:4.5}, PTZ_MAX=Infinity; // pas de plafond : le prêt à 0 % = prix − aides
+  var st={e:'gaz',h:15,iso:4,d:15,tab:'eco'};
+  var $=function(id){return document.getElementById(id)};
+  // accepte « 4000+1200 » : additionne les morceaux
+  var v=function(id){return String($(id).value).replace(/\s/g,'').split('+').reduce(function(s,p){var x=parseFloat(p.replace(',','.'));return s+(isFinite(x)?x:0)},0)};
+  var eur=function(n){return Math.round(n).toLocaleString('fr-FR')+' €'};
+  var eur2=function(n){return (Math.round(n*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2})+' €'};
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+  var R={}; // derniers résultats, pour le PDF
+
+  function seg(attr,cb){
+    var bs=document.querySelectorAll('['+attr+']');
+    bs.forEach(function(b){b.addEventListener('click',function(){
+      bs.forEach(function(o){o.classList.toggle('on',o===b)});cb(b.getAttribute(attr));calc();
+    })});
+  }
+  seg('data-e',function(x){st.e=x;$('inf').value=String(AUTO[x]).replace('.',',');
+    $('lblE').textContent=x==='gaz'?'Gaz':'Fioul';$('lblInf').textContent=x==='gaz'?'Hausse du gaz':'Hausse du fioul'});
+  seg('data-iso',function(x){st.iso=+x});
+  seg('data-h',function(x){st.h=+x});
+  seg('data-d',function(x){st.d=+x;syncMens()});
+  seg('data-tab',function(x){st.tab=x;$('vEco').hidden=x!=='eco';$('vFin').hidden=x!=='fin';$('vTrav').hidden=x!=='trav';$('vMais').hidden=x!=='mais';try{localStorage.setItem('tab',x)}catch(e){}});
+  st.mc='Bleu'; st.ball=''; st.gy=15;
+  seg('data-gy',function(x){st.gy=+x});
+  seg('data-mc',function(x){st.mc=x; if(x==='Rose'){$('mpr').value='0';syncMens()}});
+  seg('data-ball',function(x){st.ball=x;$('litRow').hidden=!x});
+  document.querySelectorAll('input[type=checkbox]').forEach(function(c){c.addEventListener('change',calc)});
+
+  document.querySelectorAll('input,select').forEach(function(i){
+    i.addEventListener('input',function(){ if(['price','mpr','cee'].indexOf(i.id)>=0) syncMens(); calc(); });
+    if(i.tagName==='INPUT' && i.type==='text' && i.id!=='client') i.addEventListener('focus',function(){setTimeout(function(){try{i.select()}catch(e){}},0)});
+  });
+  $('client').addEventListener('input',function(){try{localStorage.setItem('client',$('client').value)}catch(e){}});
+  try{ $('client').value=localStorage.getItem('client')||''; }catch(e){}
+
+  function fin(){
+    var price=v('price'), mpr=v('mpr'), cee=v('cee');
+    var aides=Math.min(price,mpr+cee);
+    var ptz=Math.min(PTZ_MAX,Math.max(0,price-aides));
+    var reste=Math.max(0,price-aides-ptz);
+    var months=st.d*12;
+    return {price:price,mpr:mpr,cee:cee,aides:aides,ptz:ptz,reste:reste,months:months,mens:months?ptz/months:0,bank:$('bank').value,
+            m120:ptz/120,m180:ptz/180,net:Math.max(0,price-aides),bankMens:v('bankMens')};
+  }
+  // Le financement fixe la mensualité de l'onglet Économies
+  function syncMens(){ var f=fin(); $('mens').value=String(Math.round(f.mens*100)/100).replace('.',','); }
+
+  function calc(){
+    // --- Économies
+    var H=st.h, bill=v('bill'), maint=v('maint'), mens=v('mens'), surf=v('surf'), repl=v('repl'), g=v('inf')/100;
+    var elecM=surf*st.iso/12, before=bill+maint/12, after=mens+elecM, gain=before-after;
+    $('mBefore').innerHTML=eur(before)+' <small>/mois</small>';
+    $('elec').innerHTML=eur(elecM)+' <em>/mois</em>';
+    $('mAfter').innerHTML=eur(after)+' <small>/mois</small>';
+    $('gainBox').classList.toggle('neg',gain<0);
+    $('gainLbl').textContent=gain>=0?'Gagné chaque mois':'En plus chaque mois';
+    $('gain').textContent=(gain>=0?'+ ':'− ')+eur(Math.abs(gain));
+    $('gainSub').textContent=eur(before)+' − '+eur(after);
+
+    var energy=0; for(var y=0;y<H;y++) energy+=bill*12*Math.pow(1+g,y);
+    var mensYears=Math.min(H,st.d);
+    var totG=energy+maint*H+repl, totMens=mens*12*mensYears, totElec=elecM*12*H, totP=totMens+totElec, save=totG-totP;
+    var mx=Math.max(totG,totP,1);
+    $('totG').textContent=eur(totG); $('totP').textContent=eur(totP);
+    $('barG').style.width=(totG/mx*100)+'%'; $('barP').style.width=(totP/mx*100)+'%';
+    var detG=(st.e==='gaz'?'Gaz ':'Fioul ')+eur(energy)+' · entretien '+eur(maint*H)+' · remplacement '+eur(repl);
+    var detP='Mensualités '+eur(totMens)+(mensYears<H?' ('+mensYears+' ans)':'')+' · électricité '+eur(totElec);
+    $('detG').textContent=detG; $('detP').textContent=detP;
+    $('totBox').classList.toggle('neg',save<0);
+    $('totLbl').textContent=(save>=0?'Économie potentielle sur ':'Surcoût sur ')+H+' ans';
+    $('save').textContent=eur(Math.abs(save));
+
+    // --- Financement
+    var f=fin();
+    document.querySelectorAll('.bk').forEach(function(b){b.textContent=f.bank});
+    document.querySelectorAll('.pr').forEach(function(b){b.textContent=eur(f.price)});
+    $('ptzAmt').textContent=eur(f.ptz);
+    $('pilePrice').textContent=eur(f.price);
+    var parts=[{k:"MaPrimeRénov'",n:Math.min(f.mpr,f.price),c:'var(--mpr)'},{k:'Prime CEE',n:f.aides-Math.min(f.mpr,f.price),c:'var(--cee)'},{k:'Prêt à taux zéro',n:f.ptz,c:'var(--ptz)'},{k:'Reste à financer',n:f.reste,c:'var(--gas)'}].filter(function(p){return p.n>0});
+    $('pile').innerHTML=parts.map(function(p){return '<div style="flex:'+p.n+' 1 0;background:'+p.c+'">'+eur(p.n)+'</div>'}).join('');
+    $('leg').innerHTML=parts.map(function(p){return '<span><span class="sw" style="background:'+p.c+'"></span>'+p.k+'</span><span class="n">'+eur(p.n)+'</span>'}).join('')+
+      '<span style="font-weight:700">Avancé par '+esc(f.bank)+'</span><span class="n">'+eur(f.price)+'</span>';
+    var afterAides=f.price-f.aides;
+    $('debt').innerHTML='<span class="a">'+eur(f.price)+'</span><i>− aides →</i><span class="a">'+eur(afterAides)+'</span><i>− prêt 0 % →</i><span class="a '+(f.reste?'':'zero')+'">'+eur(f.reste)+'</span>';
+    $('warn').hidden=!f.reste;
+    $('warn').textContent='Reste '+eur(f.reste)+' au-delà du prêt à taux zéro (plafond '+eur(PTZ_MAX)+') : apport ou crédit classique.';
+    $('finMens').textContent=eur2(f.mens)+' /mois';
+    $('finSub').textContent='pendant '+f.months+' mois · 0 % d\'intérêt · '+eur(f.ptz)+' ÷ '+f.months;
+
+    R={client:$('client').value.trim(),e:st.e,H:H,bill:bill,maint:maint,before:before,mens:mens,elecM:elecM,after:after,gain:gain,
+       totG:totG,totP:totP,save:save,detG:detG,detP:detP,iso:st.iso,surf:surf,f:f,parts:parts,afterAides:afterAides};
+  }
+
+  // ---------- MAISON : questions techniques ----------
+  // n = champ chiffré, o = choix (re-toucher pour annuler), t = texte libre
+  var Q=[
+    {g:'Foyer',items:[
+      {k:'Situation familiale',o:['Marié','Pacsé','Concubinage','Célibataire'],key:'sit'},
+      {k:'Revenu fiscal de référence',n:'€',key:'rfr'},
+      {k:'Revenu fiscal de référence · déclarant 2',n:'€',key:'rfr2'},
+      {k:'Personnes dans le foyer',n:'pers.'},
+      {k:'Propriétaire depuis',n:'année'},
+      {k:'Année de construction',n:'année'}]},
+    {g:'Logement',items:[
+      {k:'Surface habitable',n:'m²',sync:'surf'},
+      {k:'Hauteur sous plafond',n:'m'},
+      {k:'Classe DPE',o:['A','B','C','D','E','F','G']},
+      {k:'Combles',o:['Aménagés','Perdus']},
+      {k:'Combles isolés',o:['Oui','Non']},
+      {k:'Murs isolés',o:['Oui','Non']},
+      {k:'Plancher bas',o:['Terre-plein','Vide sanitaire','Sous-sol']},
+      {k:'Vitrage',o:['Simple','Double','Triple']}]},
+    {g:'Électricité',items:[
+      {k:'Compteur',o:['Monophasé','Triphasé']},
+      {k:'Puissance souscrite',n:'kVA'},
+      {k:'Linky',o:['Oui','Non']}]},
+    {g:'Chauffage',items:[
+      {k:'Nombre de radiateurs',n:''},
+      {k:'Radiateurs',o:['Acier','Fonte','Aluminium']},
+      {k:'Plancher chauffant',o:['Oui','Non']},
+      {k:'Eau chaude actuelle',o:['Chaudière','Ballon électrique','Autre']},
+      {k:'Température de confort',n:'°C'}]},
+    {g:'Remarques',items:[{k:'Remarques',t:1}]}
+  ];
+  var M={}, qi=0, html='';
+  Q.forEach(function(sec){
+    html+='<section class="card"><div class="title">'+sec.g+'</div>';
+    sec.items.forEach(function(q){
+      var id='q'+(qi++); q.id=id;
+      if(q.o){ html+='<div class="q"><span class="k">'+q.k+'</span><div class="seg" data-q="'+id+'">'+q.o.map(function(o){return '<button type="button" data-o="'+o+'">'+o+'</button>'}).join('')+'</div></div>'; }
+      else if(q.t){ html+='<textarea class="notes" id="'+id+'" aria-label="Remarques" placeholder="Demande du client, confort, remarques…"></textarea>'; }
+      else { html+='<div class="line" id="row_'+id+'"'+(q.key==='rfr2'?' hidden':'')+'><span class="k" id="lbl_'+id+'">'+q.k+'</span><label class="field"><input id="'+id+'" type="text" inputmode="decimal" aria-label="'+q.k+'"><em>'+q.n+'</em></label></div>'; }
+    });
+    html+='</section>';
+  });
+  $('vMais').innerHTML=html;
+  Q.forEach(function(sec){sec.items.forEach(function(q){
+    if(q.o){
+      var box=document.querySelector('[data-q="'+q.id+'"]');
+      box.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){
+        var on=!b.classList.contains('on');
+        box.querySelectorAll('button').forEach(function(o){o.classList.remove('on')});
+        if(on) b.classList.add('on'); M[q.id]=on?b.getAttribute('data-o'):'';
+        if(q.key==='sit') updSit();
+      })});
+    } else {
+      var el=$(q.id);
+      if(q.sync){ el.value=$(q.sync).value;
+        el.addEventListener('input',function(){$(q.sync).value=el.value;calc()});
+        $(q.sync).addEventListener('input',function(){el.value=$(q.sync).value}); }
+      el.addEventListener('input',function(){M[q.id]=el.value.trim()});
+      M[q.id]=el.value.trim();
+    }
+  })});
+
+  // Concubinage : deux déclarations, donc deux revenus fiscaux
+  var QK={}; Q.forEach(function(s){s.items.forEach(function(q){if(q.key) QK[q.key]=q})});
+  function conc(){return M[QK.sit.id]==='Concubinage'}
+  function rfrLabel(){return conc()?'Revenu fiscal de référence · déclarant 1':'Revenu fiscal de référence'}
+  function updSit(){ $('row_'+QK.rfr2.id).hidden=!conc(); $('lbl_'+QK.rfr.id).textContent=rfrLabel(); }
+
+  // ---------- PDF ----------
+  var CDN=['https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
+  function load(src){return new Promise(function(ok,ko){var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=ko;document.head.appendChild(s)})}
+  var PAL={'var(--mpr)':'#2f6fd6','var(--cee)':'#7a5bd6','var(--ptz)':'#108468','var(--gas)':'#d55f27'};
+
+  function pages(){
+    var r=R, f=r.f, date=new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+    var who=r.client?'Préparée pour <b>'+esc(r.client)+'</b> · '+date:date;
+    var en=r.e==='gaz'?'Gaz':'Fioul', mx=Math.max(r.totG,r.totP,1);
+    var foot='<div class="foot">Simulation indicative, non contractuelle. Sous réserve d\'acceptation du dossier par '+esc(f.bank)+' et d\'attribution des aides. Montants des aides selon les revenus du foyer.</div>';
+    var p1='<div class="pg">'+
+      '<div><h1>Vos économies</h1><div class="meta">'+who+'</div></div><div class="hr"></div>'+
+      '<h2>Ce que vous payez chaque mois</h2>'+
+      '<div class="two">'+
+        '<div class="box g"><div class="t">Aujourd\'hui · Chaudière '+en.toLowerCase()+'</div>'+
+          '<div class="row"><span>'+en+'</span><b>'+eur(r.bill)+'</b></div><div class="row"><span>Entretien</span><b>'+eur(r.maint/12)+'</b></div>'+
+          '<div class="big">'+eur(r.before)+'<small>/mois</small></div></div>'+
+        '<div class="box p"><div class="t">Demain · Pompe à chaleur</div>'+
+          '<div class="row"><span>Mensualité</span><b>'+eur2(r.mens)+'</b></div><div class="row"><span>Électricité ('+r.surf+' m²)</span><b>'+eur(r.elecM)+'</b></div>'+
+          '<div class="big">'+eur(r.after)+'<small>/mois</small></div></div>'+
+      '</div>'+
+      '<div class="gainp'+(r.gain<0?' neg':'')+'"><div>'+(r.gain>=0?'Gagné chaque mois':'En plus chaque mois')+'</div><div class="v">'+(r.gain>=0?'+ ':'− ')+eur(Math.abs(r.gain))+'</div><div>'+eur(r.before)+' − '+eur(r.after)+'</div></div>'+
+      '<h2>Sur '+r.H+' ans</h2>'+
+      '<div class="pb"><div class="lab"><span>Chaudière</span><span>'+eur(r.totG)+'</span></div><div class="tr"><div class="fl" style="width:'+(r.totG/mx*100)+'%;background:#d55f27"></div></div><div class="det">'+esc(r.detG)+'</div></div>'+
+      '<div class="pb"><div class="lab"><span>Pompe à chaleur</span><span>'+eur(r.totP)+'</span></div><div class="tr"><div class="fl" style="width:'+(r.totP/mx*100)+'%;background:#108468"></div></div><div class="det">'+esc(r.detP)+'</div></div>'+
+      '<div class="tot'+(r.save<0?' neg':'')+'"><span>'+(r.save>=0?'Économie potentielle':'Surcoût')+' sur '+r.H+' ans</span><b>'+eur(Math.abs(r.save))+'</b></div>'+
+      foot+'</div>';
+    var pile=r.parts.map(function(p){return '<div style="flex:'+p.n+' 1 0;background:'+PAL[p.c]+'">'+eur(p.n)+'</div>'}).join('');
+    var leg=r.parts.map(function(p){return '<div class="row"><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:8px;background:'+PAL[p.c]+'"></span>'+p.k+'</span><b>'+eur(p.n)+'</b></div>'}).join('');
+    var bk=esc(f.bank);
+    var step=function(n,t,p,ok){return '<div class="stp'+(ok?' ok':'')+'"><div class="n">'+n+'</div><div><h3>'+t+'</h3><p>'+p+'</p></div></div>'};
+    var p2='<div class="pg">'+
+      '<div><h1>Le financement</h1><div class="meta">'+who+'</div></div><div class="hr"></div>'+
+      '<h2>Qui paie les '+eur(f.price)+'</h2><div class="pilep">'+pile+'</div><div style="display:flex;flex-direction:column;gap:6px">'+leg+
+      '<div class="row" style="border-top:1px solid #dfe4e7;padding-top:6px"><b>Avancé par '+bk+'</b><b>'+eur(f.price)+'</b></div></div>'+
+      '<h2>Comment ça se passe</h2>'+
+      step(1,'Étude du dossier · 3 à 4 jours','Étude technique, administrative et financière envoyée à '+bk+'. Accepté : on fixe la date d\'installation. Refusé : le projet ne peut pas se faire.')+
+      step(2,'Installation · '+bk+' avance tout','La pompe à chaleur est payée en entier ('+eur(f.price)+'). Vous ne sortez rien.')+
+      step(3,'6 mois sans rien payer','MaPrimeRénov\' et la prime CEE ('+eur(f.aides)+') puis le prêt à taux zéro ('+eur(f.ptz)+') sont reversés à '+bk+'. Vous devez : '+eur(f.price)+' → '+eur(r.afterAides)+' → '+eur(f.reste)+'.')+
+      step(4,'À partir du 7e mois',bk+' est soldé. Il ne reste que le prêt à taux zéro.',true)+
+      (f.reste?'<div class="tot neg"><span>Reste au-delà du prêt à taux zéro</span><b>'+eur(f.reste)+'</b></div>':'')+
+      '<h2>Votre mensualité · prêt à 0 %</h2>'+
+      '<div class="duo"><div><div>Sur 15 ans · 180 mois</div><div class="v">'+eur2(f.m180)+'</div><div>/mois</div></div>'+
+      '<div><div>Sur 10 ans · 120 mois</div><div class="v">'+eur2(f.m120)+'</div><div>/mois</div></div></div>'+
+      foot+'</div>';
+
+    // Page 3 : bouquet de travaux
+    var MC={Bleu:'#2f6fd6',Jaune:'#e3b505',Violet:'#7a5bd6',Rose:'#e0609a'};
+    var works=[].map.call(document.querySelectorAll('[data-w]:checked'),function(c){
+      var w=c.getAttribute('data-w'); return w==='Groupe extérieur'&&v('kw')?w+' · <b>'+esc($('kw').value)+' kW</b>':esc(w)});
+    if(st.ball) works.push(esc(st.ball)+(v('lit')?' · <b>'+esc($('lit').value)+' L</b>':''));
+    var frais=[].map.call(document.querySelectorAll('[data-fr]:checked'),function(c){return esc(c.getAttribute('data-fr'))});
+    var li=function(a){return '<ul>'+a.map(function(x){return '<li><span>'+x+'</span></li>'}).join('')+'</ul>'};
+    var p3='<div class="pg">'+
+      '<div><h1>Bouquet de travaux</h1><div class="meta">'+who+'</div></div><div class="hr"></div>'+
+      '<div class="two">'+
+        '<div class="card3"><div class="t">Pompe à chaleur air / eau</div>'+li(works)+'</div>'+
+        '<div style="display:flex;flex-direction:column;gap:18px">'+
+          (frais.length?'<div class="card3"><div class="t">Frais inclus</div>'+li(frais)+'</div>':'')+
+          ($('guar').checked?'<div class="guar">Garantie '+st.gy+' ans<br><span style="font-weight:400">pièces · main d\'œuvre · déplacement</span></div>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="card3"><div class="t">Subventions</div>'+
+        '<div class="row"><span>MaPrimeRénov\'<span class="pill" style="background:'+MC[st.mc]+'">'+st.mc+'</span></span><b>'+eur(f.mpr)+'</b></div>'+
+        '<div class="row"><span>Prime CEE</span><b>'+eur(f.cee)+'</b></div>'+
+        '<div class="row" style="border-top:1px solid #dfe4e7;padding-top:8px"><b>Total des aides</b><b>'+eur(f.aides)+'</b></div></div>'+
+      '<div class="split">'+
+        '<div><div class="t">Sans les aides</div><div class="amt">'+eur(f.price)+'</div>'+
+          '<div>'+bk+' avance tout · 15 ans</div><div class="m">'+eur2(f.bankMens)+' <small>/mois</small></div></div>'+
+        '<div><div class="t">Aides réinjectées</div><div class="amt">'+eur(f.price)+' − '+eur(f.aides)+'</div>'+
+          '<div class="amt">= '+eur(f.net)+'</div>'+
+          '<div>15 ans · ÷ 180</div><div class="m">'+eur2(f.m180)+' <small>/mois</small></div>'+
+          '<div>10 ans · ÷ 120</div><div class="m">'+eur2(f.m120)+' <small>/mois</small></div></div>'+
+      '</div>'+
+      '<div style="border:2px solid #1b2226;border-radius:12px;padding:14px 18px;text-align:center;font:700 16px var(--font-head)">Ce dossier est sous réserve d\'acceptation,<br>nul et caduc en cas de refus.</div>'+
+      foot+'</div>';
+    // Page 4 : informations du logement (discrète, seulement les champs remplis)
+    var surfEl=null, rows='', notes='';
+    Q.forEach(function(sec){sec.items.forEach(function(q){
+      var val=q.sync?$(q.sync).value.trim():(M[q.id]||'');
+      if(!val) return;
+      if(q.t){ notes=val; return; }
+      if(q.key==='rfr2' && !conc()) return;
+      rows+='<div><span>'+(q.key==='rfr'?rfrLabel():q.k)+'</span><b>'+esc(val)+(q.n&&q.n!=='année'?' '+q.n:'')+'</b></div>';
+    })});
+    rows='<div><span>Chauffage actuel</span><b>Chaudière '+(st.e==='gaz'?'gaz':'fioul')+'</b></div>'+rows;
+    var p0='<div class="pg">'+
+      '<div><h1>Étude pompe à chaleur RO</h1><div class="meta">'+who+'</div></div><div class="hr"></div>'+
+      '<h2>Informations du client et du logement</h2>'+
+      '<div class="info" style="font-size:14px">'+rows+'</div>'+
+      (notes?'<div style="font-size:14px"><div style="color:#68757c;margin-bottom:4px">Remarques</div><div style="white-space:pre-wrap">'+esc(notes)+'</div></div>':'')+
+      '<div class="foot">Informations déclarées par le client lors de l\'étude.</div></div>';
+    return [p0,p3,p2,p1]; // logement, bouquet, financement, économies
+  }
+
+  // PDF autonome : on le crée, puis un 2e appui l'envoie (menu Partager de l'iPhone)
+  var btn=$('pdfBtn'), msg=$('pdfMsg'), ready=null;
+  btn.hidden=false;
+  function say(t){msg.textContent=t;msg.hidden=!t}
+  function resetPdf(){ if(ready){ ready=null; btn.textContent='PDF'; say(''); } }
+  document.addEventListener('input',resetPdf,true);
+  document.addEventListener('click',function(e){ if(e.target!==btn && e.target.closest && e.target.closest('button')) resetPdf(); },true);
+  function fallback(){
+    var u=URL.createObjectURL(ready.file), a=document.createElement('a');
+    a.href=u; a.download=ready.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(u)},60000); resetPdf();
+  }
+  function sharePdf(){
+    var f=ready.file;
+    if(navigator.canShare && navigator.canShare({files:[f]})){
+      navigator.share({files:[f],title:ready.name}).then(resetPdf,function(e){ if(!(e&&e.name==='AbortError')) fallback(); });
+    } else fallback();
+  }
+  btn.addEventListener('click',function(){
+    if(ready){ sharePdf(); return; }
+    btn.disabled=true; say('Création du PDF…'); calc();
+    var paper=$('paper');
+    Promise.all([load(CDN[0]),load(CDN[1])]).then(function(){
+      return document.fonts ? document.fonts.ready : null;
+    }).then(function(){
+      paper.innerHTML=pages().join('');
+      var els=paper.querySelectorAll('.pg'), pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}), i=0;
+      function next(){
+        if(i>=els.length) return Promise.resolve();
+        return window.html2canvas(els[i],{scale:2,backgroundColor:'#ffffff',logging:false}).then(function(c){
+          if(i>0) pdf.addPage();
+          pdf.addImage(c.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297); i++; return next();
+        });
+      }
+      return next().then(function(){
+        var name='Etude PAC'+(R.client?' - '+R.client.replace(/[\\/:*?"<>|]/g,''):'')+'.pdf';
+        ready={name:name,file:new File([pdf.output('blob')],name,{type:'application/pdf'})};
+        btn.textContent='Envoyer'; say('PDF prêt : appuyez sur « Envoyer ».');
+      });
+    }).catch(function(){ say('Le PDF n\'a pas pu être créé. Vérifiez la connexion et réessayez.'); })
+    .then(function(){ btn.disabled=false; paper.innerHTML=''; });
+  });
+  if('serviceWorker' in navigator){ window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); }); }
+
+  try{ var t=localStorage.getItem('tab'); if(t==='fin'||t==='trav'||t==='mais') document.querySelector('[data-tab="'+t+'"]').click(); }catch(e){}
+  syncMens(); calc();
+})();
+</script>
+
+</body>
+</html>
